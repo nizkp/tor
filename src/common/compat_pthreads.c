@@ -39,7 +39,7 @@ tor_pthread_helper_fn(void *_data)
   sigset_t sigs;
   /* We're in a subthread; don't handle any signals here. */
   sigfillset(&sigs);
-  pthread_sigmask(SIG_SETMASK, &sigs, NULL);
+  sigprocmask(SIG_SETMASK, &sigs, NULL);
 
   func = data->func;
   arg = data->data;
