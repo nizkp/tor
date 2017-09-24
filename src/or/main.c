@@ -124,6 +124,10 @@
 #include <systemd/sd-daemon.h>
 #endif
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 void evdns_shutdown(int);
 
 /********* PROTOTYPES **********/
@@ -137,6 +141,7 @@ static int conn_close_if_marked(int i);
 static void connection_start_reading_from_linked_conn(connection_t *conn);
 static int connection_should_read_from_linked_conn(connection_t *conn);
 static int run_main_loop_until_done(void);
+static void emscripten_main_loop(void);
 static void process_signal(int sig);
 
 /********* START VARIABLES **********/
@@ -2564,8 +2569,12 @@ do_main_loop(void)
     }
   }
 #endif
-
+  #ifdef __EMSCRIPTEN__
+  // TODO: why 30?
+  emscripten_set_main_loop(emscripten_main_loop, 30, 1);
+  #else
   return run_main_loop_until_done();
+  #endif
 }
 
 /**
@@ -2598,8 +2607,12 @@ run_main_loop_once(void)
    * an event, or the second ends, or until we have some active linked
    * connections to trigger events for.  Libevent will wait till one
    * of these happens, then run all the appropriate callbacks. */
+  #ifdef __EMSCRIPTEN__
+  loop_result = event_base_loop(tor_libevent_get_base(), EVLOOP_ONCE | EVLOOP_NONBLOCK);
+  #else
   loop_result = event_base_loop(tor_libevent_get_base(),
                                 called_loop_once ? EVLOOP_ONCE : 0);
+  #endif
 
   /* Oh, the loop failed.  That might be an error that we need to
    * catch, but more likely, it's just an interrupted poll() call or something,
@@ -2642,6 +2655,18 @@ run_main_loop_once(void)
   return 1;
 }
 
+#ifdef __EMSCRIPTEN__
+static void
+emscripten_main_loop(void)
+{
+  int ret = run_main_loop_once();
+  if (ret != 1) {
+    // TODO: what should we do here?
+    printf("emscripten main loop finished %d\n", ret);
+    emscripten_cancel_main_loop();
+  }
+}
+#endif
 /** Run the run_main_loop_once() function until it declares itself done,
  * and return its final return value.
  *
@@ -3778,4 +3803,3 @@ tor_main(int argc, char *argv[])
   tor_cleanup();
   return result;
 }
-
